@@ -40,14 +40,17 @@ const AI_API_CONFIG = {
 };
 
 // AI API calling functions
-async function callOpenAI(prompt, conversationHistory = [], debateSessions, isUserResponse = false) {
+async function callOpenAI(prompt, conversationHistory = [], debateSessions, sessionId, isUserResponse = false) {
   if (!AI_API_CONFIG.OPENAI.key || AI_API_CONFIG.OPENAI.key === 'your_openai_api_key_here') {
     throw new Error('OpenAI API key not configured');
   }
 
   try {
     // Get the session to access the original prompt
-    const session = debateSessions.values().next().value; // Get first session for now
+    const session = debateSessions.get(sessionId);
+    if (!session) {
+      throw new Error(`Session ${sessionId} not found`);
+    }
     
     const lastMessage = conversationHistory.length > 0 ? conversationHistory[conversationHistory.length - 1] : null;
     const lastContent = lastMessage ? lastMessage.content : prompt;
@@ -130,7 +133,7 @@ ${nameReference}${userResponsePrompt}${MASTER_STYLE_PROMPT} You are ChatGPT - a 
   }
 }
 
-async function callAnthropic(prompt, conversationHistory = [], debateSessions, isUserResponse = false) {
+async function callAnthropic(prompt, conversationHistory = [], debateSessions, sessionId, isUserResponse = false) {
   const CLAUDE_API_KEY = process.env.ANTHROPIC_API_KEY;
   if (!CLAUDE_API_KEY || CLAUDE_API_KEY === 'your_anthropic_api_key_here') {
     throw new Error('Anthropic API key not configured');
@@ -138,7 +141,10 @@ async function callAnthropic(prompt, conversationHistory = [], debateSessions, i
 
   try {
     // Get the session to access the original prompt
-    const session = debateSessions.values().next().value; // Get first session for now
+    const session = debateSessions.get(sessionId);
+    if (!session) {
+      throw new Error(`Session ${sessionId} not found`);
+    }
     
     // Use last user message or fallback to prompt
     const lastMessage = conversationHistory.length > 0 ? conversationHistory[conversationHistory.length - 1] : null;
@@ -223,7 +229,7 @@ ${nameReference}${userResponsePrompt}${MASTER_STYLE_PROMPT} You are Claude and y
   }
 }
 
-async function callGrok(prompt, conversationHistory = [], debateSessions, isUserResponse = false) {
+async function callGrok(prompt, conversationHistory = [], debateSessions, sessionId, isUserResponse = false) {
   const XAI_API_KEY = process.env.XAI_API_KEY;
   if (!XAI_API_KEY) {
     throw new Error('XAI API key not found');
@@ -231,7 +237,10 @@ async function callGrok(prompt, conversationHistory = [], debateSessions, isUser
 
   try {
     // Get the session to access the original prompt
-    const session = debateSessions.values().next().value; // Get first session for now
+    const session = debateSessions.get(sessionId);
+    if (!session) {
+      throw new Error(`Session ${sessionId} not found`);
+    }
     
     const lastMessage = conversationHistory.length > 0 ? conversationHistory[conversationHistory.length - 1] : null;
     const lastContent = lastMessage ? lastMessage.content : prompt;
@@ -314,14 +323,17 @@ ${nameReference}${userResponsePrompt}${MASTER_STYLE_PROMPT} You are Grok and you
   }
 }
 
-async function callDeepSeek(prompt, conversationHistory = [], debateSessions, isUserResponse = false) {
+async function callDeepSeek(prompt, conversationHistory = [], debateSessions, sessionId, isUserResponse = false) {
   if (!AI_API_CONFIG.DEEPSEEK.key || AI_API_CONFIG.DEEPSEEK.key === 'your_deepseek_api_key_here') {
     throw new Error('DeepSeek API key not configured');
   }
 
   try {
     // Get the session to access the original prompt
-    const session = debateSessions.values().next().value; // Get first session for now
+    const session = debateSessions.get(sessionId);
+    if (!session) {
+      throw new Error(`Session ${sessionId} not found`);
+    }
     
     const lastMessage = conversationHistory.length > 0 ? conversationHistory[conversationHistory.length - 1] : null;
     const lastContent = lastMessage ? lastMessage.content : prompt;
@@ -405,16 +417,16 @@ ${nameReference}${userResponsePrompt}${MASTER_STYLE_PROMPT} You are DeepSeek and
 }
 
 // AI response router
-async function getAIResponse(prompt, aiModel, conversationHistory = [], debateSessions, isUserResponse = false) {
+async function getAIResponse(prompt, aiModel, conversationHistory = [], debateSessions, sessionId, isUserResponse = false) {
   switch (aiModel) {
     case 'CHATGPT':
-      return await callOpenAI(prompt, conversationHistory, debateSessions, isUserResponse);
+      return await callOpenAI(prompt, conversationHistory, debateSessions, sessionId, isUserResponse);
     case 'CLAUDE':
-      return await callAnthropic(prompt, conversationHistory, debateSessions, isUserResponse);
+      return await callAnthropic(prompt, conversationHistory, debateSessions, sessionId, isUserResponse);
     case 'GROK':
-      return await callGrok(prompt, conversationHistory, debateSessions, isUserResponse);
+      return await callGrok(prompt, conversationHistory, debateSessions, sessionId, isUserResponse);
     case 'DEEPSEEK':
-      return await callDeepSeek(prompt, conversationHistory, debateSessions, isUserResponse);
+      return await callDeepSeek(prompt, conversationHistory, debateSessions, sessionId, isUserResponse);
     default:
       return "I'm not sure how to respond to that.";
   }
@@ -451,6 +463,7 @@ async function handleUserMessageResponse(session, debateSessions) {
       aiModel.name, 
       session.messages.filter(msg => !msg.isTyping),
       debateSessions,
+      session.id,
       true // Mark this as a user response context
     );
     
@@ -528,7 +541,8 @@ async function runDebateLoop(sessionId, debateSessions) {
         session.prompt, 
         aiModel.name, 
         session.messages.filter(msg => !msg.isTyping), // Send history without typing indicators
-        debateSessions
+        debateSessions,
+        sessionId
       );
       
       console.log(`📝 [AI RESPONSE] ${aiModel.name}: "${response}"`);
