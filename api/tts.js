@@ -14,7 +14,7 @@ const VOICE_CONFIGS = {
   },
   'CLAUDE': {
     voice: 'echo',
-    speed: 1.1,
+    speed: 1.0,
     pitch: 0.9
   },
   'CHATGPT': {
@@ -24,7 +24,7 @@ const VOICE_CONFIGS = {
   },
   'DEEPSEEK': {
     voice: 'onyx',
-    speed: 0.9,
+    speed: 1.0,
     pitch: 1.0
   }
 };
