@@ -1,6 +1,4 @@
 const OpenAI = require('openai');
-const fs = require('fs');
-const path = require('path');
 
 // Initialize OpenAI client
 const openai = new OpenAI({
@@ -31,139 +29,109 @@ const VOICE_CONFIGS = {
   }
 };
 
-// Available OpenAI voices
-const OPENAI_VOICES = ['alloy', 'echo', 'fable', 'onyx', 'nova', 'shimmer'];
-
-class TTSService {
-  constructor() {
-    this.audioCache = new Map();
-    this.audioDir = path.join(__dirname, '../public/audio');
-    this.ensureAudioDirectory();
-    
-    // Clean up old files on startup
-    this.cleanupOldFiles();
+// Simple hash function for text
+function hashCode(str) {
+  let hash = 0;
+  if (str.length === 0) return hash.toString();
+  for (let i = 0; i < str.length; i++) {
+    const char = str.charCodeAt(i);
+    hash = ((hash << 5) - hash) + char;
+    hash = hash & hash; // Convert to 32bit integer
   }
-
-  ensureAudioDirectory() {
-    if (!fs.existsSync(this.audioDir)) {
-      fs.mkdirSync(this.audioDir, { recursive: true });
-    }
-  }
-
-  async generateTTS(text, speaker) {
-    try {
-      const config = VOICE_CONFIGS[speaker] || VOICE_CONFIGS['CHATGPT'];
-      
-      // Create a unique filename based on text hash and speaker
-      const textHash = this.hashCode(text);
-      const filename = `${speaker.toLowerCase()}_${textHash}.mp3`;
-      const filepath = path.join(this.audioDir, filename);
-
-      // Check if audio already exists in cache
-      if (this.audioCache.has(filename)) {
-        return `/audio/${filename}`;
-      }
-
-      // Check if file already exists on disk
-      if (fs.existsSync(filepath)) {
-        this.audioCache.set(filename, filepath);
-        return `/audio/${filename}`;
-      }
-
-      // Generate TTS using OpenAI
-      const mp3 = await openai.audio.speech.create({
-        model: "tts-1",
-        voice: config.voice,
-        input: text,
-        speed: config.speed,
-      });
-
-      // Convert the response to buffer and save
-      const buffer = Buffer.from(await mp3.arrayBuffer());
-      fs.writeFileSync(filepath, buffer);
-
-      // Cache the result
-      this.audioCache.set(filename, filepath);
-
-      return `/audio/${filename}`;
-    } catch (error) {
-      console.error('TTS generation error:', error);
-      return null;
-    }
-  }
-
-  // Delete a specific audio file
-  deleteAudioFile(filename) {
-    try {
-      const filepath = path.join(this.audioDir, filename);
-      if (fs.existsSync(filepath)) {
-        fs.unlinkSync(filepath);
-        console.log(`Deleted audio file: ${filename}`);
-      }
-      // Remove from cache
-      this.audioCache.delete(filename);
-    } catch (error) {
-      console.error(`Error deleting audio file ${filename}:`, error);
-    }
-  }
-
-  // Clean up old files (older than 1 hour)
-  cleanupOldFiles() {
-    try {
-      const files = fs.readdirSync(this.audioDir);
-      const now = Date.now();
-      const oneHour = 60 * 60 * 1000; // 1 hour in milliseconds
-
-      files.forEach(file => {
-        if (file.endsWith('.mp3')) {
-          const filepath = path.join(this.audioDir, file);
-          const stats = fs.statSync(filepath);
-          const fileAge = now - stats.mtime.getTime();
-
-          if (fileAge > oneHour) {
-            fs.unlinkSync(filepath);
-            console.log(`Cleaned up old audio file: ${file}`);
-          }
-        }
-      });
-    } catch (error) {
-      console.error('Error cleaning up old files:', error);
-    }
-  }
-
-  // Schedule file deletion after a delay
-  scheduleFileDeletion(filename, delayMs = 5000) {
-    setTimeout(() => {
-      this.deleteAudioFile(filename);
-    }, delayMs);
-  }
-
-  // Simple hash function for text
-  hashCode(str) {
-    let hash = 0;
-    if (str.length === 0) return hash.toString();
-    for (let i = 0; i < str.length; i++) {
-      const char = str.charCodeAt(i);
-      hash = ((hash << 5) - hash) + char;
-      hash = hash & hash; // Convert to 32bit integer
-    }
-    return Math.abs(hash).toString(36);
-  }
-
-  // Get voice configuration for a speaker
-  getVoiceConfig(speaker) {
-    return VOICE_CONFIGS[speaker] || VOICE_CONFIGS['CHATGPT'];
-  }
-
-  // Get all available voices
-  getAvailableVoices() {
-    return OPENAI_VOICES;
-  }
-
-  // Clear audio cache
-  clearCache() {
-    this.audioCache.clear();
-  }
+  return Math.abs(hash).toString(36);
 }
 
-module.exports = new TTSService();
+// Vercel serverless function handler
+module.exports = async (req, res) => {
+  // Enable CORS
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+
+  // Handle preflight requests
+  if (req.method === 'OPTIONS') {
+    res.status(200).end();
+    return;
+  }
+
+  // Only allow POST requests
+  if (req.method !== 'POST') {
+    return res.status(405).json({ 
+      success: false, 
+      error: 'Method not allowed. Use POST.' 
+    });
+  }
+
+  try {
+    const { text, speaker } = req.body;
+
+    // Validate input
+    if (!text || !speaker) {
+      return res.status(400).json({ 
+        success: false, 
+        error: 'Text and speaker are required' 
+      });
+    }
+
+    // Check if OpenAI API key is configured
+    if (!process.env.OPENAI_API_KEY) {
+      return res.status(503).json({ 
+        success: false, 
+        error: 'TTS service not available - missing OpenAI API key' 
+      });
+    }
+
+    // Get voice configuration
+    const config = VOICE_CONFIGS[speaker] || VOICE_CONFIGS['CHATGPT'];
+
+    console.log(`🎤 [TTS GENERATION] Generating audio for ${speaker}: "${text.substring(0, 50)}..."`);
+
+    // Generate TTS using OpenAI
+    const mp3 = await openai.audio.speech.create({
+      model: "tts-1",
+      voice: config.voice,
+      input: text,
+      speed: config.speed,
+    });
+
+    // Convert the response to buffer
+    const buffer = Buffer.from(await mp3.arrayBuffer());
+
+    // Create a unique filename for caching purposes
+    const textHash = hashCode(text);
+    const filename = `${speaker.toLowerCase()}_${textHash}.mp3`;
+
+    console.log(`✅ [TTS SUCCESS] Generated audio: ${filename} (${buffer.length} bytes)`);
+
+    // Return the audio data directly
+    res.setHeader('Content-Type', 'audio/mpeg');
+    res.setHeader('Content-Length', buffer.length);
+    res.setHeader('Cache-Control', 'public, max-age=3600'); // Cache for 1 hour
+    res.setHeader('X-Audio-Filename', filename);
+    
+    res.status(200).send(buffer);
+
+  } catch (error) {
+    console.error('❌ [TTS ERROR]', error);
+    
+    // Handle specific OpenAI errors
+    if (error.status === 401) {
+      return res.status(503).json({ 
+        success: false, 
+        error: 'TTS service not available - invalid OpenAI API key' 
+      });
+    }
+    
+    if (error.status === 429) {
+      return res.status(429).json({ 
+        success: false, 
+        error: 'TTS service rate limited - please try again later' 
+      });
+    }
+
+    return res.status(500).json({ 
+      success: false, 
+      error: 'TTS generation failed: ' + error.message 
+    });
+  }
+};

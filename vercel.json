@@ -6,11 +6,19 @@
       "use": "@vercel/node"
     },
     {
+      "src": "api/tts.js",
+      "use": "@vercel/node"
+    },
+    {
       "src": "public/**/*",
       "use": "@vercel/static"
     }
   ],
   "routes": [
+    {
+      "src": "/api/tts/(.*)",
+      "dest": "/api/tts.js"
+    },
     {
       "src": "/api/(.*)",
       "dest": "/api/index.js"
@@ -23,5 +31,10 @@
       "src": "/(.*)",
       "dest": "/public/$1"
     }
-  ]
+  ],
+  "functions": {
+    "api/tts.js": {
+      "maxDuration": 30
+    }
+  }
 }

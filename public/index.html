@@ -1185,7 +1185,7 @@
                 
                 // Generate TTS first to get audio duration
                 let audioDuration = null;
-                let audioUrl = null;
+                let audioBlob = null;
                 
                 // Check if debate is still running before generating TTS
                 if (this.ttsEnabled && this.isRunning) {
@@ -1198,25 +1198,31 @@
                             body: JSON.stringify({ text, speaker: this.currentSpeaker })
                         });
                         
-                        if (response.ok) {
-                            const data = await response.json();
-                            if (data.success && data.audioUrl) {
-                                audioUrl = data.audioUrl;
-                                
-                                // Create audio element to get duration
-                                const audio = new Audio(audioUrl);
-                                audio.volume = 0.7;
-                                
-                                // Wait for metadata to load to get duration
-                                await new Promise((resolve, reject) => {
-                                    audio.addEventListener('loadedmetadata', () => {
-                                        audioDuration = audio.duration;
-                                        resolve();
-                                    });
-                                    audio.addEventListener('error', reject);
-                                    audio.load();
+                        if (response.ok && response.headers.get('content-type')?.includes('audio/mpeg')) {
+                            // Get the audio blob from the response
+                            audioBlob = await response.blob();
+                            const audioUrl = URL.createObjectURL(audioBlob);
+                            
+                            // Create audio element to get duration
+                            const audio = new Audio(audioUrl);
+                            audio.volume = 0.7;
+                            
+                            // Wait for metadata to load to get duration
+                            await new Promise((resolve, reject) => {
+                                audio.addEventListener('loadedmetadata', () => {
+                                    audioDuration = audio.duration;
+                                    resolve();
                                 });
-                            }
+                                audio.addEventListener('error', reject);
+                                audio.load();
+                            });
+                            
+                            // Clean up the object URL after getting duration
+                            URL.revokeObjectURL(audioUrl);
+                        } else if (response.ok) {
+                            // Handle JSON error response
+                            const errorData = await response.json();
+                            console.error('TTS API error:', errorData.error);
                         }
                     } catch (error) {
                         console.error('TTS generation error:', error);
@@ -1231,7 +1237,7 @@
                 typingDelay = Math.max(20, Math.min(200, typingDelay));
                 
                 // Start TTS playback if we have audio and debate is still running
-                if (audioUrl && this.ttsEnabled && this.isRunning) {
+                if (audioBlob && this.ttsEnabled && this.isRunning) {
                     try {
                         // Stop any currently playing TTS
                         if (this.currentTTSAudio) {
@@ -1239,6 +1245,8 @@
                             this.currentTTSAudio.currentTime = 0;
                         }
                         
+                        // Create object URL from blob
+                        const audioUrl = URL.createObjectURL(audioBlob);
                         this.currentTTSAudio = new Audio(audioUrl);
                         this.currentTTSAudio.volume = 0.7;
                         
@@ -1247,30 +1255,14 @@
                         
                         // Clean up when audio finishes
                         this.currentTTSAudio.addEventListener('ended', () => {
-                            // Schedule file deletion after audio finishes
-                            const filename = audioUrl.split('/').pop();
-                            if (filename) {
-                                fetch('/api/tts/delete', {
-                                    method: 'POST',
-                                    headers: { 'Content-Type': 'application/json' },
-                                    body: JSON.stringify({ filename })
-                                }).catch(error => console.error('Error scheduling file deletion:', error));
-                            }
+                            URL.revokeObjectURL(audioUrl);
                             this.currentTTSAudio = null;
                         });
                         
                         // Clean up on error
                         this.currentTTSAudio.addEventListener('error', () => {
                             console.warn('TTS audio playback failed');
-                            // Schedule file deletion even on error
-                            const filename = audioUrl.split('/').pop();
-                            if (filename) {
-                                fetch('/api/tts/delete', {
-                                    method: 'POST',
-                                    headers: { 'Content-Type': 'application/json' },
-                                    body: JSON.stringify({ filename })
-                                }).catch(error => console.error('Error scheduling file deletion:', error));
-                            }
+                            URL.revokeObjectURL(audioUrl);
                             this.currentTTSAudio = null;
                         });
                     } catch (error) {

@@ -12,14 +12,7 @@ try {
   console.warn('Debate functionality will be limited without API keys');
 }
 
-// Try to import TTS functionality
-let ttsService = null;
-try {
-  ttsService = require('./api/tts');
-} catch (error) {
-  console.warn('Warning: TTS module failed to load:', error.message);
-  console.warn('Voice functionality will be disabled without OpenAI API key');
-}
+
 
 const app = express();
 
@@ -27,6 +20,14 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
+
+// Wire TTS endpoint for local development (Vercel uses serverless handler directly)
+try {
+  const ttsHandler = require('./api/tts');
+  app.post('/api/tts/generate', ttsHandler);
+} catch (err) {
+  console.warn('TTS handler not available locally:', err?.message || err);
+}
 
 // Debate questions for each category
 const debateQuestions = {
@@ -335,81 +336,9 @@ app.post('/api/debate/:sessionId/message', async (req, res) => {
   res.json({ success: true, message: 'Message added' });
 });
 
-// TTS endpoint for generating speech
-app.post('/api/tts/generate', async (req, res) => {
-  try {
-    const { text, speaker } = req.body;
-    
-    if (!text || !speaker) {
-      return res.status(400).json({ 
-        success: false, 
-        error: 'Text and speaker are required' 
-      });
-    }
 
-    if (!ttsService) {
-      return res.status(503).json({ 
-        success: false, 
-        error: 'TTS service not available - missing OpenAI API key' 
-      });
-    }
 
-    const audioUrl = await ttsService.generateTTS(text, speaker);
-    
-    if (audioUrl) {
-      res.json({ 
-        success: true, 
-        audioUrl: audioUrl,
-        speaker: speaker
-      });
-    } else {
-      res.status(500).json({ 
-        success: false, 
-        error: 'Failed to generate TTS' 
-      });
-    }
-  } catch (error) {
-    console.error('TTS generation error:', error);
-    res.status(500).json({ 
-      success: false, 
-      error: 'TTS generation failed' 
-    });
-  }
-});
 
-// TTS endpoint for deleting audio files
-app.post('/api/tts/delete', async (req, res) => {
-  try {
-    const { filename } = req.body;
-    
-    if (!filename) {
-      return res.status(400).json({ 
-        success: false, 
-        error: 'Filename is required' 
-      });
-    }
-
-    if (!ttsService) {
-      return res.status(503).json({ 
-        success: false, 
-        error: 'TTS service not available' 
-      });
-    }
-
-    ttsService.deleteAudioFile(filename);
-    
-    res.json({ 
-      success: true, 
-      message: 'Audio file deleted' 
-    });
-  } catch (error) {
-    console.error('TTS deletion error:', error);
-    res.status(500).json({ 
-      success: false, 
-      error: 'Failed to delete audio file' 
-    });
-  }
-});
 
 // Cleanup old sessions (run every hour)
 setInterval(() => {
@@ -432,7 +361,11 @@ module.exports = app;
 
 // For local development
 if (require.main === module) {
-  const PORT = process.env.PORT || 3003;
+  // Robustly parse and validate PORT to avoid issues like "3003image.png"
+  const rawPort = process.env.PORT;
+  const parsed = Number.parseInt(rawPort, 10);
+  const PORT = Number.isFinite(parsed) && parsed > 0 && parsed < 65536 ? parsed : 3003;
+
   app.listen(PORT, () => {
     console.log(`Debate Terminal server running on port ${PORT}`);
     console.log(`Visit http://localhost:${PORT} to access the application`);
