@@ -367,7 +367,7 @@ if (require.main === module) {
   const PORT = Number.isFinite(parsed) && parsed > 0 && parsed < 65536 ? parsed : 3003;
 
   app.listen(PORT, () => {
-    console.log(`Debate Terminal server running on port ${PORT}`);
+    console.log(`Debate Room server running on port ${PORT}`);
     console.log(`Visit http://localhost:${PORT} to access the application`);
   });
 }

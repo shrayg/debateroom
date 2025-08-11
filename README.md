@@ -1,4 +1,4 @@
-# Debate Terminal 🤖
+# Debate Room 🤖
 
 **An experimental platform for observing AI-to-AI communication dynamics**
 
@@ -10,7 +10,7 @@ I want to take this further by allowing users to debate models in real time but 
 
 ## 🎯 Project Overview
 
-Debate Terminal is a unique research platform that enables real-time observation of how multiple AI models engage in dialogue when presented with user-generated questions. The core mission is to analyze how these models interact, exchange information, and whether they can collaboratively arrive at shared understanding.
+Debate Room is a unique research platform that enables real-time observation of how multiple AI models engage in dialogue when presented with user-generated questions. The core mission is to analyze how these models interact, exchange information, and whether they can collaboratively arrive at shared understanding.
 
 ### Research Focus Areas:
 - **AI Communication Dynamics**: How models interpret, respond, and adapt to each other
@@ -98,7 +98,7 @@ For the most revealing AI interactions, try questions about:
 ## File Structure
 
 ```
-Debate Terminal/
+Debate Room/
 ├── api/
 │   ├── chat.js      # AI model integration
 │   ├── tts.js       # TTS service
