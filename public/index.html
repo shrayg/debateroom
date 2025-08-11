@@ -773,6 +773,40 @@
             position: relative;
             top: 2px;
         }
+
+        /* Mute Button */
+        .mute-button {
+            background: rgba(15, 23, 42, 0.95);
+            border: 2px solid #000000;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            backdrop-filter: blur(10px);
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+            color: #e0e6ed;
+            font-size: 1rem;
+            margin-left: 10px;
+        }
+
+        .mute-button:hover {
+            background: rgba(30, 41, 59, 0.95);
+            transform: scale(1.05);
+        }
+
+        .mute-button.muted {
+            background: rgba(239, 68, 68, 0.2);
+            border-color: #ef4444;
+            color: #fca5a5;
+        }
+
+        .mute-button.muted:hover {
+            background: rgba(239, 68, 68, 0.3);
+        }
     </style>
 </head>
 <body>
@@ -786,11 +820,13 @@
             <a href="https://github.com/shrayg/debateroom" target="_blank" class="social-link">
                 <span class="social-icon">🐙</span>GitHub
             </a>
-            <a href="https://x.com/kkaimatsu" target="_blank" class="social-link">
+            <a href="https://x.com/DebateRoomAI" target="_blank" class="social-link">
                 <span class="social-icon">🐦</span>Twitter
             </a>
         </div>
     </div>
+
+
 
 
 
@@ -865,6 +901,9 @@
                 <button class="btn btn-danger" id="stopBtn" style="margin-left: 20px; padding: 8px 16px; font-size: 0.8rem;">
                     Stop Debate
                 </button>
+                <div class="mute-button" id="muteButton" title="Mute/Unmute Audio">
+                    🔊
+                </div>
             </div>
         </div>
 
@@ -925,6 +964,7 @@
                 this.ttsEnabled = true; // Always enabled
                 this.currentTTSAudio = null;
                 this.autoScrollEnabled = false; // Disable auto-scroll by default
+                this.isMuted = false; // Mute state
                 
                 this.initializeElements();
                 this.bindEvents();
@@ -989,6 +1029,7 @@
                 this.chatSendBtn = document.getElementById('chatSendBtn');
                 this.endDebateModal = document.getElementById('endDebateModal');
                 this.closeModalBtn = document.getElementById('closeModalBtn');
+                this.muteButton = document.getElementById('muteButton');
                 
                 // Debug only on initial connection
                 console.log('New user connected - Debate Room initialized');
@@ -1025,6 +1066,11 @@
                 // Modal event binding
                 this.closeModalBtn.addEventListener('click', () => {
                     this.hideEndDebateModal();
+                });
+
+                // Mute button event binding
+                this.muteButton.addEventListener('click', () => {
+                    this.toggleMute();
                 });
             }
 
@@ -1485,6 +1531,7 @@
                         this.currentTTSAudio = new Audio(audioUrl);
                         this.currentTTSAudio.volume = 0.7;
                         this.currentTTSAudio.playbackRate = 1.15; // 15% faster playback
+                        this.currentTTSAudio.muted = this.isMuted; // Apply mute state
                         
                         // Play the TTS audio
                         await this.currentTTSAudio.play();
@@ -1631,6 +1678,33 @@
                 this.endDebateModal.classList.remove('show');
                 // End the debate after modal is closed
                 this.handleDebateEnd();
+            }
+
+            // Mute functionality
+            toggleMute() {
+                this.isMuted = !this.isMuted;
+                
+                // Update button appearance
+                if (this.isMuted) {
+                    this.muteButton.classList.add('muted');
+                    this.muteButton.textContent = '🔇';
+                    this.muteButton.title = 'Unmute Audio';
+                } else {
+                    this.muteButton.classList.remove('muted');
+                    this.muteButton.textContent = '🔊';
+                    this.muteButton.title = 'Mute Audio';
+                }
+                
+                // Mute/unmute current TTS audio if playing
+                if (this.currentTTSAudio) {
+                    this.currentTTSAudio.muted = this.isMuted;
+                }
+                
+                // Mute all audio elements on the page
+                const allAudioElements = document.querySelectorAll('audio');
+                allAudioElements.forEach(audio => {
+                    audio.muted = this.isMuted;
+                });
             }
         }
 
