@@ -512,7 +512,7 @@ async function runDebateLoop(sessionId, debateSessions) {
 
   console.log(`🚀 [DEBATE LOOP STARTED] Session: ${sessionId}`);
 
-  while (session.isActive && session.currentTurn < 50) {
+  while (session.isActive && session.currentTurn < 15) {
     let aiModel = null;
     try {
       // Select AI model for this turn

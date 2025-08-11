@@ -373,6 +373,77 @@
             cursor: not-allowed;
         }
 
+        /* Pop-up Modal */
+        .modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.7);
+            backdrop-filter: blur(5px);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+            opacity: 0;
+            visibility: hidden;
+            transition: all 0.3s ease;
+        }
+
+        .modal-overlay.show {
+            opacity: 1;
+            visibility: visible;
+        }
+
+        .modal-content {
+            background: rgba(30, 41, 59, 0.95);
+            border: 1px solid rgba(71, 85, 105, 0.3);
+            border-radius: 20px;
+            backdrop-filter: blur(10px);
+            padding: 40px;
+            max-width: 500px;
+            width: 90%;
+            text-align: center;
+            transform: scale(0.9);
+            transition: all 0.3s ease;
+        }
+
+        .modal-overlay.show .modal-content {
+            transform: scale(1);
+        }
+
+        .modal-title {
+            font-size: 1.5rem;
+            font-weight: 600;
+            color: #e0e6ed;
+            margin-bottom: 16px;
+        }
+
+        .modal-message {
+            font-size: 1.1rem;
+            color: #9ca3af;
+            line-height: 1.6;
+            margin-bottom: 32px;
+        }
+
+        .modal-btn {
+            padding: 12px 24px;
+            background: #3b82f6;
+            color: white;
+            border: none;
+            border-radius: 12px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            font-size: 1rem;
+        }
+
+        .modal-btn:hover {
+            background: #2563eb;
+            transform: translateY(-1px);
+        }
+
         /* Custom scrollbar */
         .debate-messages::-webkit-scrollbar {
             width: 8px;
@@ -830,6 +901,15 @@
                 </div>
             </div>
         </div>
+
+        <!-- End Debate Modal -->
+        <div class="modal-overlay" id="endDebateModal">
+            <div class="modal-content">
+                <div class="modal-title">Debate Ended</div>
+                <div class="modal-message">Due to rate limits and cost saving we have to end the conversation here.</div>
+                <button class="modal-btn" id="closeModalBtn">Continue</button>
+            </div>
+        </div>
     </div>
 
     <script>
@@ -907,6 +987,8 @@
                 this.chatInputSection = document.getElementById('chatInputSection');
                 this.chatInput = document.getElementById('chatInput');
                 this.chatSendBtn = document.getElementById('chatSendBtn');
+                this.endDebateModal = document.getElementById('endDebateModal');
+                this.closeModalBtn = document.getElementById('closeModalBtn');
                 
                 // Debug only on initial connection
                 console.log('New user connected - Debate Terminal initialized');
@@ -938,6 +1020,11 @@
                         const category = btn.dataset.category;
                         this.loadRandomQuestion(category);
                     });
+                });
+
+                // Modal event binding
+                this.closeModalBtn.addEventListener('click', () => {
+                    this.hideEndDebateModal();
                 });
             }
 
@@ -1032,6 +1119,11 @@
                     if (session.currentTurn !== this.turnCount) {
                         this.turnCount = session.currentTurn;
                         this.updateStatus(`Turn ${this.turnCount} - AI models debating...`);
+                        
+                        // Check if debate has reached 15 turns and show modal
+                        if (this.turnCount >= 15) {
+                            this.showEndDebateModal();
+                        }
                     }
 
                 } catch (error) {
@@ -1372,12 +1464,12 @@
                     }
                 }
                 
-                // Calculate typing speed based on audio duration
+                // Calculate typing speed based on audio duration (15% faster)
                 let totalTypingTime = audioDuration ? audioDuration * 1000 : 3000; // Default 3 seconds if no audio
-                let typingDelay = totalTypingTime / text.length;
+                let typingDelay = (totalTypingTime / text.length) * 0.85; // 15% faster (multiply by 0.85)
                 
                 // Ensure minimum and maximum delays
-                typingDelay = Math.max(20, Math.min(200, typingDelay));
+                typingDelay = Math.max(17, Math.min(170, typingDelay)); // Adjusted min/max for 15% faster
                 
                 // Start TTS playback if we have audio and debate is still running
                 if (audioBlob && this.ttsEnabled && this.isRunning) {
@@ -1392,6 +1484,7 @@
                         const audioUrl = URL.createObjectURL(audioBlob);
                         this.currentTTSAudio = new Audio(audioUrl);
                         this.currentTTSAudio.volume = 0.7;
+                        this.currentTTSAudio.playbackRate = 1.15; // 15% faster playback
                         
                         // Play the TTS audio
                         await this.currentTTSAudio.play();
@@ -1527,6 +1620,17 @@
                 const div = document.createElement('div');
                 div.textContent = text;
                 return div.innerHTML;
+            }
+
+            // Modal methods
+            showEndDebateModal() {
+                this.endDebateModal.classList.add('show');
+            }
+
+            hideEndDebateModal() {
+                this.endDebateModal.classList.remove('show');
+                // End the debate after modal is closed
+                this.handleDebateEnd();
             }
         }
 
